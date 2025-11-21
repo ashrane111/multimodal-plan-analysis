@@ -57,7 +57,11 @@ def main():
     id2label = full_dataset.id2label 
     label2id = full_dataset.label2id
     
-    model_wrapper = LayoutLMv3Model(num_labels=len(labels))
+    model_wrapper = LayoutLMv3Model(
+        num_labels=len(labels),
+        id2label=id2label,
+        label2id=label2id
+    )
     
     # 4. Training Arguments
     training_args = TrainingArguments(
