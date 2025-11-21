@@ -1,12 +1,13 @@
-# Data
-data/
+# Data (Root folder only)
+/data/
 models_output/
+
+# Python/System
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .env
 venv/
-wandb/
 .venv/
-# OS specific
+wandb/
 .DS_Store
