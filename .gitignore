@@ -1,0 +1,12 @@
+# Data
+data/
+models_output/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+venv/
+wandb/
+.venv/
+# OS specific
+.DS_Store
