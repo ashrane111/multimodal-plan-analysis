@@ -1,45 +1,35 @@
 #!/bin/bash
-#SBATCH --job-name=layoutlm_train      # Job name
-#SBATCH --output=logs/train_%j.out     # Output log file (%j = job ID)
-#SBATCH --error=logs/train_%j.err      # Error log file
-#SBATCH --partition=sharing                # Partition name
-#SBATCH --gres=gpu:a100:1              # Request 1 V100 GPU (Critical for your PyTorch version)
-#SBATCH --nodes=1                      # Run on a single node
-#SBATCH --ntasks=1                     # Run a single task
-#SBATCH --cpus-per-task=8              # Request 8 CPU cores for data loading
-#SBATCH --mem=32G                      # Request 32GB RAM
-#SBATCH --time=01:00:00                # Time limit (4 hours)
+#SBATCH --job-name=layoutlm_train
+#SBATCH --output=logs/train_%j.out
+#SBATCH --error=logs/train_%j.err
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:v100-sxm2:1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=08:00:00
 
-echo "Job started on $(hostname) at $(date)"
-
-# DEBUG: Print what is currently loaded
-echo "Modules before cleaning:"
-module list
-
-# AGGRESSIVE CLEANING
-module unload cuda       # Try to unload generic cuda
-module unload cuda/11.0  # Try to unload common defaults
-module unload cuda/11.8
-module unload gcc        # GCC often binds to CUDA
-
-# Load fresh
+# 1. Clean Environment
+module purge
+module load python/3.13.5
 module load cuda/12.1.1
 
-# DEBUG: Print what we actually got
-echo "Modules after loading:"
-module list
-
-# Verify CUDA is visible
-nvidia-smi
-
-# 2. Activate your virtual environment
+# 2. Activate Venv (CRITICAL: Do this BEFORE running python commands)
 source .venv/bin/activate
-
-# 3. Set Python Path so it finds 'src'
-export PYTHONPATH=$PYTHONPATH:.
-
+export HF_HUB_OFFLINE=1
+export WANDB_MODE=offline
+export HF_DATASETS_OFFLINE=1
+# 3. Debugging Info
+echo "--- DEBUG INFO ---"
+echo "Hostname: $(hostname)"
+echo "Python:"
+which python
+python --version
+echo "Checking PyTorch..."
+python -c "import torch; print(f'Torch: {torch.__version__}'); print(f'CUDA Available: {torch.cuda.is_available()}')"
+echo "------------------"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # 4. Run Training
-# We use python -m to run it as a module
+export PYTHONPATH=$PYTHONPATH:.
 python -m src.train
-
-echo "Job finished at $(date)"

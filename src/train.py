@@ -1,9 +1,38 @@
+import socket
+original_socket = socket.socket
+
+class SafeSocket(original_socket):
+    def connect(self, address):
+        # Allow connecting to local system sockets (strings)
+        # PyTorch multiprocessing uses these (e.g., '/tmp/pymp-...')
+        if isinstance(address, str):
+            return super().connect(address)
+            
+        # Allow connecting to localhost (127.0.0.1)
+        if isinstance(address, tuple) and address[0] in ['127.0.0.1', 'localhost']:
+            return super().connect(address)
+            
+        # BLOCK external connections (Hugging Face, etc.)
+        raise ConnectionError(f"👮 CAUGHT YOU! A library tried to connect to external: {address}")
+
+# Apply the patch
+socket.socket = SafeSocket
+
 import sys
 import os
 import torch
 import numpy as np
 from transformers import Trainer, TrainingArguments, LayoutLMv3Processor
 import evaluate 
+
+if not torch.cuda.is_available():
+    print("❌ FATAL ERROR: PyTorch cannot find a GPU!")
+    print(f"CUDA Available: {torch.cuda.is_available()}")
+    print(f"Device Count: {torch.cuda.device_count()}")
+    print("Exiting to prevent slow CPU training.")
+    sys.exit(1)
+else:
+    print(f"✅ GPU DETECTED: {torch.cuda.get_device_name(0)}")
 
 # --- PATH PATCH START ---
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +68,7 @@ def get_compute_metrics(id2label):
 
 def main():
     # 1. Setup Processor
-    processor = LayoutLMv3Processor.from_pretrained("microsoft/layoutlmv3-base", apply_ocr=False)
+    processor = LayoutLMv3Processor.from_pretrained("layoutlmv3_base", apply_ocr=False)
 
     # 2. Initialize Dataset
     print("Loading Arrow dataset...")
@@ -77,7 +106,9 @@ def main():
         output_dir="models_output/checkpoints",
         num_train_epochs=3,              # Iterate over data 3 times
         per_device_train_batch_size=8,   # Higher batch size for GPU (Try 8 or 16)
-        per_device_eval_batch_size=8,
+        per_device_eval_batch_size=4,
+        eval_accumulation_steps=1,       # CRITICAL: Offload predictions to CPU immediately
+        gradient_checkpointing=False,
         learning_rate=5e-5,
         eval_strategy="steps",
         eval_steps=500,                  # Evaluate every 500 steps
@@ -100,7 +131,16 @@ def main():
     )
 
     print("Starting Full Training...")
-    trainer.train()
+    # Check if a valid checkpoint exists
+    last_checkpoint = None
+    if os.path.isdir(training_args.output_dir):
+        from transformers.trainer_utils import get_last_checkpoint
+        last_checkpoint = get_last_checkpoint(training_args.output_dir)
+        if last_checkpoint:
+            print(f"Found checkpoint at {last_checkpoint}. Resuming training...")
+
+    # Pass the checkpoint (or None) to train()
+    trainer.train(resume_from_checkpoint=last_checkpoint)
     
     # 6. Save Final Model
     final_path = "models_output/layoutlmv3_finetuned_full"

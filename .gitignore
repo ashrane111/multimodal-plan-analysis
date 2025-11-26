@@ -1,8 +1,10 @@
-# Data (Root folder only)
+# Data & Models (Keep these local only)
 /data/
-models_output/
+/models_output/
+*.safetensors
+*.bin
 
-# Python/System
+# Python & System Junk
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
@@ -11,3 +13,6 @@ venv/
 .venv/
 wandb/
 .DS_Store
+logs/
+layoutlmv3_base/
+layoutlmv3_base/

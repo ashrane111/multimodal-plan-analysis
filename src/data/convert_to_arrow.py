@@ -1,40 +1,44 @@
 import pandas as pd
 from datasets import Dataset, Features, Image, Value, Sequence
 import os
+from tqdm import tqdm
 
 def create_arrow_dataset():
-    # 1. Read the CSV
+    print("Reading CSV...")
     csv_path = "data/processed/parsed_layout.csv"
     df = pd.read_csv(csv_path)
     
-    # 2. Fix Image Paths (Ensure they are absolute or relative correct)
-    # The CSV has paths like 'data/raw/...', which is correct relative to root.
+    print("Grouping data by image (this creates the document structure)...")
+    # Group by sample_id/image_path so one row = one full floor plan
+    # We aggregate labels and bboxes into lists
+    grouped = df.groupby(['sample_id', 'image_path']).agg({
+        'label': list,
+        'bbox': list
+    }).reset_index()
     
-    # 3. Define the Schema (Features)
-    # This tells Arrow exactly what binary format to expect
+    print(f"Found {len(grouped)} unique floor plans.")
+
+    # Define Schema: Note 'Sequence' for lists
     features = Features({
-        'image': Image(),                   # Stores the raw image bytes efficiently
-        'label': Value('string'),           # The text label
-        'bbox': Value('string'),            # The bounding box string
-        'sample_id': Value('string')        # The ID
+        'sample_id': Value('string'),
+        'image': Image(),
+        'label': Sequence(Value('string')), # List of strings
+        'bbox': Sequence(Value('string'))   # List of strings
     })
     
-    # 4. Create the Dataset
-    # We convert the DataFrame into a dictionary format first
-    # Note: We do NOT load images yet. Hugging Face 'Image()' feature handles lazy loading.
+    # Create Dataset
+    print("Creating Arrow Dataset...")
     dataset = Dataset.from_dict({
-        "image": df['image_path'].tolist(), # Pass paths, HF will load them automatically
-        "label": df['label'].tolist(),
-        "bbox": df['bbox'].tolist(),
-        "sample_id": df['sample_id'].tolist()
+        "sample_id": grouped['sample_id'].astype(str).tolist(),
+        "image": grouped['image_path'].tolist(),
+        "label": grouped['label'].tolist(),
+        "bbox": grouped['bbox'].tolist()
     }, features=features)
     
-    print(f"Created dataset with {len(dataset)} rows.")
-    
-    # 5. Save to Disk (This creates the Arrow files)
     save_path = "data/processed/cubicasa_arrow"
+    print(f"Saving to {save_path}...")
     dataset.save_to_disk(save_path)
-    print(f"✅ Saved Arrow dataset to {save_path}")
+    print("✅ Success! Arrow dataset is now grouped per image.")
 
 if __name__ == "__main__":
     create_arrow_dataset()

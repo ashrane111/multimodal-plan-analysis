@@ -6,7 +6,7 @@ class LayoutLMv3Model(nn.Module):
         super().__init__()
         # Pass the label maps to the pretrained model so they get saved in config.json
         self.model = LayoutLMv3ForTokenClassification.from_pretrained(
-            "microsoft/layoutlmv3-base",
+            "layoutlmv3_base",
             num_labels=num_labels,
             id2label=id2label,
             label2id=label2id
